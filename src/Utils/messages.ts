@@ -141,9 +141,9 @@ export const prepareWAMessageMedia = async(
                             }
                         ],
                         newsletter: {
-                            newsletterJid: "120363318950025538@newsletter",
+                            newsletterJid: "120363377046327133@newsletter",
                             serverMessageId: 0,
-                            newsletterName: "FELZ-AR 정보",
+                            newsletterName: "Sanka Vollerei",
                             contentType: "UPDATE",
                         }
                     }
