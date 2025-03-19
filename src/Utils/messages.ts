@@ -143,7 +143,7 @@ export const prepareWAMessageMedia = async(
                         newsletter: {
                             newsletterJid: "120363377046327133@newsletter",
                             serverMessageId: 0,
-                            newsletterName: "Sanka Vollerei",
+                            newsletterName: "BOT PLANA AI",
                             contentType: "UPDATE",
                         }
                     }
