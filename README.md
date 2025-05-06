@@ -1,4 +1,6 @@
-# Baileys - Typescript/Javascript WhatsApp Web API
+# <div align='center'>Baileys - Typescript/Javascript WhatsApp Web API</div>
+
+<div align="center"><img src="https://files.catbox.moe/ibob7z.png"></div>
 
 ### Important Note
 
@@ -33,12 +35,12 @@ To run the example script, download or clone the repo and then type the followin
 
 Use the stable version:
 ```
-yarn add @whiskeysockets/baileys
+yarn add @SankaVollereii/Sanka-Baileys
 ```
 
 Use the edge version (no guarantee of stability, but latest fixes + features)
 ```
-yarn add github:WhiskeySockets/Baileys
+yarn add github:SankaVollereii/Sanka-Baileys
 ```
 
 Then import your code using:
