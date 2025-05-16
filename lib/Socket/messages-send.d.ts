@@ -1,4 +1,4 @@
-/// <reference types="node" />
+
 import { Boom } from '@hapi/boom';
 import { proto } from '../../WAProto';
 import { AnyMessageContent, Media, MediaConnInfo, MessageReceiptType, MessageRelayOptions, MiscMessageGenerationOptions, QueryIds, SocketConfig, WAMessageKey } from '../Types';
