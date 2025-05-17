@@ -917,12 +917,16 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					} as BinaryNode)
 				// required to display AI icon on message
 				} else if(isAiMsg) {
-					additionalNodes.push({
-						attrs: {
-							biz_bot: '1'
-						},
-						tag: "bot"
-					})
+				    (additionalNodes as BinaryNode[]).push({
+                        attrs: {
+                            biz_bot: '1'
+                        },
+                        tag: 'bot'
+                        }
+                    )
+                    if(options.additionalNodes) {
+                        (additionalNodes as BinaryNode[]).push(...options.additionalNodes)
+                    }
 				}
 
 				if (mediaHandle) {
