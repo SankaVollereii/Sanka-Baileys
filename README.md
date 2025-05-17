@@ -78,51 +78,51 @@ More features and improvements will be added in the future.
 
 - **To get info newsletter**
 ``` ts
-const metadata = await sock.newsletterMetadata("invite", "xxxxx")
+const metadata = await conn.newsletterMetadata("invite", "xxxxx")
 // or
-const metadata = await sock.newsletterMetadata("jid", "abcd@newsletter")
+const metadata = await conn.newsletterMetadata("jid", "abcd@newsletter")
 console.log(metadata)
 ```
 - **To update the description of a newsletter**
 ``` ts
-await sock.newsletterUpdateDescription("abcd@newsletter", "New Description")
+await conn.newsletterUpdateDescription("abcd@newsletter", "New Description")
 ```
 - **To update the name of a newsletter**
 ``` ts
-await sock.newsletterUpdateName("abcd@newsletter", "New Name")
+await conn.newsletterUpdateName("abcd@newsletter", "New Name")
 ```  
 - **To update the profile picture of a newsletter**
 ``` ts
-await sock.newsletterUpdatePicture("abcd@newsletter", buffer)
+await conn.newsletterUpdatePicture("abcd@newsletter", buffer)
 ```
 - **To remove the profile picture of a newsletter**
 ``` ts
-await sock.newsletterRemovePicture("abcd@newsletter")
+await conn.newsletterRemovePicture("abcd@newsletter")
 ```
 - **To mute notifications for a newsletter**
 ``` ts
-await sock.newsletterUnmute("abcd@newsletter")
+await conn.newsletterUnmute("abcd@newsletter")
 ```
 - **To mute notifications for a newsletter**
 ``` ts
-await sock.newsletterMute("abcd@newsletter")
+await conn.newsletterMute("abcd@newsletter")
 ```
 - **To create a newsletter**
 ``` ts
-const metadata = await sock.newsletterCreate("Newsletter Name", "Newsletter Description")
+const metadata = await conn.newsletterCreate("Newsletter Name", "Newsletter Description")
 console.log(metadata)
 ```
 - **To delete a newsletter**
 ``` ts
-await sock.newsletterDelete("abcd@newsletter")
+await conn.newsletterDelete("abcd@newsletter")
 ```
 - **To follow a newsletter**
 ``` ts
-await sock.newsletterFollow("abcd@newsletter")
+await conn.newsletterFollow("abcd@newsletter")
 ```
 - **To unfollow a newsletter**
 ``` ts
-await sock.newsletterUnfollow("abcd@newsletter")
+await conn.newsletterUnfollow("abcd@newsletter")
 ```
 - **To send reaction**
 ``` ts
@@ -131,7 +131,7 @@ await sock.newsletterUnfollow("abcd@newsletter")
 // Example: [ https://whatsapp.com/channel/xxxxx/175 ]
 // The last number of the URL is the ID
 const id = "175"
-await sock.newsletterReactMessage("abcd@newsletter", id, "🥳")
+await conn.newsletterReactMessage("abcd@newsletter", id, "🥳")
 ```
 
 ### BUTTON MESSAGE & INTERACTIVE MESSAGE
@@ -151,7 +151,7 @@ const buttonMessage = {
     viewOnce: true
 }
 
-await sock.sendMessage(id, buttonMessage, { quoted: null })
+await conn.sendMessage(id, buttonMessage, { quoted: null })
 ```
 - **To send button with image**
 ```ts
@@ -169,7 +169,7 @@ const buttonMessage = {
     viewOnce: true
 }
 
-await sock.sendMessage(id, buttonMessage, { quoted: null })
+await conn.sendMessage(id, buttonMessage, { quoted: null })
 
 ```
 - **To send button with video**
@@ -188,7 +188,7 @@ const buttonMessage = {
     viewOnce: true
 }
 
-await sock.sendMessage(id, buttonMessage, { quoted: null })
+await conn.sendMessage(id, buttonMessage, { quoted: null })
 ```
 
 - **To send interactive message**
@@ -225,7 +225,7 @@ const interactiveMessage = {
     interactiveButtons
 }
 
-await sock.sendMessage(id, interactiveMessage, { quoted: null })
+await conn.sendMessage(id, interactiveMessage, { quoted: null })
 ```
 - **To send interactive message with image**
 ```ts
@@ -262,7 +262,7 @@ const interactiveMessage = {
     interactiveButtons
 }
 
-await sock.sendMessage(id, interactiveMessage, { quoted: null })
+await conn.sendMessage(id, interactiveMessage, { quoted: null })
 ```
 - **To send interactive message with video**
 ```ts
@@ -299,23 +299,23 @@ const interactiveMessage = {
     interactiveButtons
 }
 
-await sock.sendMessage(id, interactiveMessage, { quoted: null })
+await conn.sendMessage(id, interactiveMessage, { quoted: null })
 ```
 
 ### AI Icon
 
 ```ts
 // just add "ai: true" function to sendMessage
-await sock.sendMessage(id, { text: "Hello Wold", ai: true })
+await conn.sendMessage(id, { text: "Hello Wold", ai: true })
 ```
 
 ### Custom Code Pairing
 
 ```ts
-if(usePairingCode && !sock.authState.creds.registered) {
+if(usePairingCode && !conn.authState.creds.registered) {
     const phoneNumber = await question('Please enter your mobile phone number:\n')
     const custom = "ZEROCODE" // must be 8 digits, can be letters or numbers
-    const code = await sock.requestPairingCode(phoneNumber, custom)
+    const code = await conn.requestPairingCode(phoneNumber, custom)
     console.log(`Pairing code: ${code?.match(/.{1,4}/g)?.join('-') || code}`)
 }
 ```
