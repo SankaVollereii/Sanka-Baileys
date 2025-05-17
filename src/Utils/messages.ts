@@ -2,9 +2,9 @@ import { Boom } from '@hapi/boom'
 import axios from 'axios'
 import { randomBytes } from 'crypto'
 import { promises as fs } from 'fs'
+import { Logger } from 'pino'
 import { type Transform } from 'stream'
 import { proto } from '../../WAProto'
-import { ILogger } from './logger'
 import { MEDIA_KEYS, URL_REGEX, WA_DEFAULT_EPHEMERAL } from '../Defaults'
 import {
 	AnyMediaMessageContent,
@@ -24,9 +24,9 @@ import {
 	WAProto,
 	WATextMessage,
 } from '../Types'
-import { isJidGroup, isJidNewsletter, isJidStatusBroadcast, jidNormalizedUser } from '../WABinary'
+import { isJidGroup, isJidNewsLetter, isJidStatusBroadcast, jidNormalizedUser } from '../WABinary'
 import { sha256 } from './crypto'
-import { generateMessageIDV2, getKeyAuthor, unixTimestampSeconds } from './generics'
+import { generateMessageID, getKeyAuthor, unixTimestampSeconds } from './generics'
 import { downloadContentFromMessage, encryptedStream, generateThumbnail, getAudioDuration, getAudioWaveform, MediaDownloadOptions, prepareStream } from './messages-media'
 
 type MediaUploadData = {
@@ -59,7 +59,7 @@ const MessageTypeProto = {
 	'video': WAProto.Message.VideoMessage,
 	'audio': WAProto.Message.AudioMessage,
 	'sticker': WAProto.Message.StickerMessage,
-	'document': WAProto.Message.DocumentMessage,
+   	'document': WAProto.Message.DocumentMessage,
 } as const
 
 const ButtonType = proto.Message.ButtonsMessage.HeaderType
@@ -111,12 +111,45 @@ export const prepareWAMessageMedia = async(
 		}
 	}
 
-if(!mediaType) {
+	if(!mediaType) {
 		throw new Boom('Invalid media type', { statusCode: 400 })
 	}
 
 	const uploadData: MediaUploadData = {
-		...message,
+		...message,		
+		...(message.annotations ? { 
+			annotations: message.annotations
+			} : {
+				annotations: [
+                    {
+                        polygonVertices: [
+                            {
+                                  x: 60.71664810180664,
+                                  y: -36.39784622192383
+                            },
+                            {
+                                  x: -16.710189819335938,
+                                  y: 49.263675689697266
+                            },
+                            {
+                               x: -56.585853576660156,
+                                  y: 37.85963439941406
+                            },
+                            {
+                                  x: 20.840980529785156,
+                                  y: -47.80188751220703
+                            }
+                        ],
+                        newsletter: {
+                            newsletterJid: "120363377046327133@newsletter",
+                            serverMessageId: 0,
+                            newsletterName: "BOT PLANA AI",
+                            contentType: "UPDATE",
+                        }
+                    }
+                ] 
+            }
+        ),
 		media: message[mediaType]
 	}
 	delete uploadData[mediaType]
@@ -126,7 +159,7 @@ if(!mediaType) {
 			!!uploadData.media.url &&
 			!!options.mediaCache && (
 	// generate the key
-		mediaType + ':' + uploadData.media.url.toString()
+		mediaType + ':' + uploadData.media.url!.toString()
 	)
 
 	if(mediaType === 'document' && !uploadData.fileName) {
@@ -213,6 +246,11 @@ if(!mediaType) {
 					logger?.debug('processed waveform')
 				}
 
+				if(requiresWaveformProcessing) {
+					uploadData.waveform = await getAudioWaveform(bodyPath!, logger)
+					logger?.debug('processed waveform')
+				}
+
 				if(requiresAudioBackground) {
 					uploadData.backgroundArgb = await assertColor(options.backgroundColor)
 					logger?.debug('computed backgroundColor audio status')
@@ -227,15 +265,11 @@ if(!mediaType) {
 				if (!Buffer.isBuffer(encWriteStream)) {
 					encWriteStream.destroy()
 				}
+
 				// remove tmp files
 				if(didSaveToTmpPath && bodyPath) {
-					try {
-						await fs.access(bodyPath)
-						await fs.unlink(bodyPath)
-						logger?.debug('removed tmp file')
-					} catch(error) {
-						logger?.warn('failed to remove tmp file')
-					}
+					await fs.unlink(bodyPath)
+					logger?.debug('removed tmp files')
 				}
 			}
 		)
@@ -243,7 +277,7 @@ if(!mediaType) {
 	const obj = WAProto.Message.fromObject({
 		[`${mediaType}Message`]: MessageTypeProto[mediaType].fromObject(
 			{
-				url: handle ? undefined : mediaUrl,
+				url:  handle ? undefined : mediaUrl,
 				directPath,
 				mediaKey: mediaKey,
 				fileEncSha256: fileEncSha256,
@@ -255,7 +289,7 @@ if(!mediaType) {
 			}
 		)
 	})
-	
+
 	if(uploadData.ptv) {
 		obj.ptvMessage = obj.videoMessage
 		delete obj.videoMessage
@@ -336,6 +370,7 @@ export const generateWAMessageContent = async(
 		}
 
 		if(urlInfo) {
+			extContent.canonicalUrl = urlInfo['canonical-url']
 			extContent.matchedText = urlInfo['matched-text']
 			extContent.jpegThumbnail = urlInfo.jpegThumbnail
 			extContent.description = urlInfo.description
@@ -363,7 +398,7 @@ export const generateWAMessageContent = async(
 		}
 
 		m.extendedTextMessage = extContent
-	} else if('contacts' in message) {
+    } else if('contacts' in message) {
 		const contactLen = message.contacts.contacts.length
 		if(!contactLen) {
 			throw new Boom('require atleast 1 contact', { statusCode: 400 })
@@ -371,76 +406,94 @@ export const generateWAMessageContent = async(
 
 		if(contactLen === 1) {
 			m.contactMessage = WAProto.Message.ContactMessage.fromObject(message.contacts.contacts[0])
-		} else {
+        } else {
 			m.contactsArrayMessage = WAProto.Message.ContactsArrayMessage.fromObject(message.contacts)
 		}
-	} else if('location' in message) {
+   } else if('location' in message) {
 		m.locationMessage = WAProto.Message.LocationMessage.fromObject(message.location)
-	} else if('react' in message) {
+		
+       if('contextInfo' in message && !!message.contextInfo) {
+        	m.locationMessage.contextInfo = message.contextInfo
+       }
+   } else if('liveLocation' in message) {
+		m.liveLocationMessage = WAProto.Message.LiveLocationMessage.fromObject(message.liveLocation)
+		
+       if('contextInfo' in message && !!message.contextInfo) {
+        	m.liveLocationMessage.contextInfo = message.contextInfo
+       }
+   } else if('react' in message) {
 		if(!message.react.senderTimestampMs) {
 			message.react.senderTimestampMs = Date.now()
 		}
 
 		m.reactionMessage = WAProto.Message.ReactionMessage.fromObject(message.react)
-	} else if('delete' in message) {
+   } else if('delete' in message) {
 		m.protocolMessage = {
 			key: message.delete,
 			type: WAProto.Message.ProtocolMessage.Type.REVOKE
 		}
-	} else if('forward' in message) {
+   } else if('forward' in message) {
 		m = generateForwardMessageContent(
 			message.forward,
 			message.force
 		)
-	} else if('disappearingMessagesInChat' in message) {
+   } else if('disappearingMessagesInChat' in message) {
 		const exp = typeof message.disappearingMessagesInChat === 'boolean' ?
 			(message.disappearingMessagesInChat ? WA_DEFAULT_EPHEMERAL : 0) :
 			message.disappearingMessagesInChat
 		m = prepareDisappearingMessageSettingContent(exp)
-	} else if('groupInvite' in message) {
-		m.groupInviteMessage = {}
-		m.groupInviteMessage.inviteCode = message.groupInvite.inviteCode
-		m.groupInviteMessage.inviteExpiration = message.groupInvite.inviteExpiration
-		m.groupInviteMessage.caption = message.groupInvite.text
-		m.groupInviteMessage.groupJid = message.groupInvite.jid
-		m.groupInviteMessage.groupName = message.groupInvite.subject
-		//TODO: use built-in interface and get disappearing mode info etc.
-		//TODO: cache / use store!?
-		if(options.getProfilePicUrl) {
-			const pfpUrl = await options.getProfilePicUrl(message.groupInvite.jid, 'preview')
+   } else if('groupInvite' in message) {
+        m.groupInviteMessage = {};
+        m.groupInviteMessage.inviteCode = message.groupInvite.inviteCode;
+        m.groupInviteMessage.inviteExpiration = message.groupInvite.inviteExpiration;
+        m.groupInviteMessage.caption = message.groupInvite.text;
+        m.groupInviteMessage.groupJid = message.groupInvite.jid;
+        m.groupInviteMessage.groupName = message.groupInvite.subject;
+        m.groupInviteMessage.jpegThumbnail = message.groupInvite.thumbnail;
+        //TODO: use built-in interface and get disappearing mode info etc.
+        //TODO: cache / use store!?
+        if(options.getProfilePicUrl) {
+			let pfpUrl;
+			try {
+			   pfpUrl = await options.getProfilePicUrl(message.groupInvite.jid, 'preview');
+			} catch {
+			   pfpUrl = null
+			}
 			if(pfpUrl) {
 				const resp = await axios.get(pfpUrl, { responseType: 'arraybuffer' })
 				if(resp.status === 200) {
 					m.groupInviteMessage.jpegThumbnail = resp.data
 				}
+			} else {
+			    m.groupInviteMessage.jpegThumbnail = null
 			}
 		}
-	} else if('pin' in message) {
-		m.pinInChatMessage = {}
-		m.messageContextInfo = {}
-		m.pinInChatMessage.key = message.pin
-		m.pinInChatMessage.type = message.type
-		m.pinInChatMessage.senderTimestampMs = Date.now()
-		m.messageContextInfo.messageAddOnDurationInSecs = message.type === 1 ? message.time || 86400 : 0
-	} else if('keep' in message) {
-		m.keepInChatMessage = {};
-		m.keepInChatMessage.key = message.keep;
-		m.keepInChatMessage.keepType = message.type;
-		m.keepInChatMessage.timestampMs = Date.now();
-	} else if('call' in message) {
-		m = {
-			scheduledCallCreationMessage: {
-				scheduledTimestampMs: message.call.time ?? Date.now(),
-				callType: message.call.type ?? 1, 
-				title: message.call.title
-			}
-		}
-	} else if ('paymentInvite' in message) {
-		m.paymentInviteMessage = {
-			serviceType: message.paymentInvite.type, 
-			expiryTimestamp: message.paymentInvite.expiry
-		}
-	} else if('buttonReply' in message) {
+   } else if('pin' in message) {
+        m.pinInChatMessage = {};
+        m.messageContextInfo = {};
+        m.pinInChatMessage.key = message.pin;
+        m.pinInChatMessage.type = message.type;
+        m.pinInChatMessage.senderTimestampMs = Date.now();
+        m.messageContextInfo.messageAddOnDurationInSecs = message.type === 1 ? message.time || 86400 : 0;
+   } else if('keep' in message) {
+        m.keepInChatMessage = {};
+        m.keepInChatMessage.key = message.keep;
+        m.keepInChatMessage.keepType = message.type;
+        m.keepInChatMessage.timestampMs = Date.now();
+   } else if('call' in message) {
+      m = { 
+        scheduledCallCreationMessage: {
+           scheduledTimestampMs: message.call.time ?? Date.now(),
+           callType: message.call.type ?? 1, 
+           title: message.call.title
+        }
+      }
+   } else if('paymentInvite' in message) {
+     	m.paymentInviteMessage = {
+   	       serviceType: message.paymentInvite.type, 
+           expiryTimestamp: message.paymentInvite.expiry
+        }
+   } else if('buttonReply' in message) {
 		switch (message.type) {
 		case 'template':
 			m.templateButtonReplyMessage = {
@@ -456,16 +509,23 @@ export const generateWAMessageContent = async(
 				type: proto.Message.ButtonsResponseMessage.Type.DISPLAY_TEXT,
 			}
 			break
+        case 'interactive':
+            m.interactiveResponseMessage = {
+                 body: {
+                    text: message.buttonReply.text,
+                    format: proto.Message.InteractiveResponseMessage.Body.Format.EXTENSIONS_1 
+                 }, 
+                 nativeFlowResponseMessage: {
+                    name: message.buttonReply.nativeFlow.name, 
+                    paramsJson: message.buttonReply.nativeFlow.paramsJson, 
+                    version: message.buttonReply.nativeFlow.version
+                 }
+            }
+            break        
 		}
-	} else if('ptv' in message && message.ptv) {
-		const { videoMessage } = await prepareWAMessageMedia(
-			{ video: message.video },
-			options
-		)
-		m.ptvMessage = videoMessage
-	} else if('product' in message) {
+   } else if('product' in message) {
 		const { imageMessage } = await prepareWAMessageMedia(
-			{ image: message.product.productImage },
+			{ image: message?.product?.productImage },
 			options
 		)
 		m.productMessage = WAProto.Message.ProductMessage.fromObject({
@@ -475,23 +535,31 @@ export const generateWAMessageContent = async(
 				productImage: imageMessage,
 			}
 		})
-	} else if ('order' in message) {
-		m.orderMessage = WAProto.Message.OrderMessage.fromObject({
-			orderId: message.order.id,
-			thumbnail: message.order.thumbnail,
-			itemCount: message.order.itemCount,
-			status: message.order.status,
-			surface: message.order.surface,
-			orderTitle: message.order.title,
-			message: message.order.text,
-			sellerJid: message.order.seller,
-			token: message.order.token,
-			totalAmount1000: message.order.amount,
-			totalCurrencyCode: message.order.currency
-		})
-	} else if('listReply' in message) {
+		
+        if('contextInfo' in message && !!message.contextInfo) {
+        	m.productMessage.contextInfo = message.contextInfo
+        }
+        
+        if('mentions' in message && !!message.mentions) {
+        	m.productMessage.contextInfo = { mentionedJid: message.mentions }
+        }
+   } else if ('order' in message) {
+      m.orderMessage = WAProto.Message.OrderMessage.fromObject({
+            orderId: message.order.id,
+            thumbnail: message.order.thumbnail,
+            itemCount: message.order.itemCount,
+            status: message.order.status,
+            surface: message.order.surface,
+            orderTitle: message.order.title,
+            message: message.order.text,
+            sellerJid: message.order.seller,
+            token: message.order.token,
+            totalAmount1000: message.order.amount,
+            totalCurrencyCode: message.order.currency
+        }) 
+   } else if('listReply' in message) {
 		m.listResponseMessage = { ...message.listReply }
-	} else if('poll' in message) {
+   } else if('poll' in message) {
 		message.poll.selectableCount ||= 0
 		message.poll.toAnnouncementGroup ||= false
 
@@ -514,70 +582,132 @@ export const generateWAMessageContent = async(
 			messageSecret: message.poll.messageSecret || randomBytes(32),
 		}
 
-		const pollCreationMessage = {
+		const pollCreationMessage: proto.Message.IPollCreationMessage = {
 			name: message.poll.name,
 			selectableOptionsCount: message.poll.selectableCount,
 			options: message.poll.values.map(optionName => ({ optionName })),
 		}
-		
+
 		if(message.poll.toAnnouncementGroup) {
 			// poll v2 is for community announcement groups (single select and multiple)
 			m.pollCreationMessageV2 = pollCreationMessage
 		} else {
 			if(message.poll.selectableCount > 0) {
-				// poll v3 is for single select polls
+				//poll v3 is for single select polls
 				m.pollCreationMessageV3 = pollCreationMessage
 			} else {
 				// poll v3 for multiple choice polls
 				m.pollCreationMessage = pollCreationMessage
 			}
 		}
-	} else if('event' in message) {
+		
+        if('contextInfo' in message && !!message.contextInfo) {
+        	pollCreationMessage.contextInfo = message.contextInfo
+        }
+        
+   } else if('pollResult' in message) {
+   
+        if(!Array.isArray(message.pollResult.votes)) {
+			throw new Boom('Invalid poll votes result', { statusCode: 400 })
+		}
+		
 		m.messageContextInfo = {
-			messageSecret: message.event.messageSecret || randomBytes(32), 
+			// encKey
+			messageSecret: message.pollResult.messageSecret || randomBytes(32),
 		}
-		m.eventMessage = { ...message.event }
-	} else if('inviteAdmin' in message) {
-		m.newsletterAdminInviteMessage = {};
-		m.newsletterAdminInviteMessage.inviteExpiration = message.inviteAdmin.inviteExpiration;
-		m.newsletterAdminInviteMessage.caption = message.inviteAdmin.text;
-		m.newsletterAdminInviteMessage.newsletterJid = message.inviteAdmin.jid;
-		m.newsletterAdminInviteMessage.newsletterName = message.inviteAdmin.subject;
-		m.newsletterAdminInviteMessage.jpegThumbnail = message.inviteAdmin.thumbnail;
-	} else if ('requestPayment' in message) {  
-		const sticker = message?.requestPayment?.sticker ?
-			await prepareWAMessageMedia(
-				{ sticker: message?.requestPayment?.sticker, ...options },
-				options
-			)
-			: null
-		let notes = {}
-		if(message?.requestPayment?.sticker) {
-			notes = {
-				stickerMessage: {
-					...sticker?.stickerMessage,
-					contextInfo: message?.requestPayment?.contextInfo
-				}
-			}
-		} else if(message.requestPayment.note) {
-			notes = {
-				extendedTextMessage: {
-					text: message.requestPayment.note,
-					contextInfo: message?.requestPayment?.contextInfo,
-				}
-			}
-		} else {
-			throw new Boom('Invalid media type', { statusCode: 400 })
+		
+		const pollResultSnapshotMessage: proto.Message.IPollResultSnapshotMessage = {
+		    name: message.pollResult.name,
+		    pollVotes: message.pollResult.votes!.map((option) => ({
+		          optionName: option[0],
+		          optionVoteCount: option[1]
+		       })
+		    ),
 		}
-		m.requestPaymentMessage = WAProto.Message.RequestPaymentMessage.fromObject({
-			expiryTimestamp: message.requestPayment.expiry,
-			amount1000: message.requestPayment.amount,
-			currencyCodeIso4217: message.requestPayment.currency,
-			requestFrom: message.requestPayment.from,
-			noteMessage: { ...notes },
-			background: message.requestPayment.background ?? null,
-		})
-	} else if('sharePhoneNumber' in message) {
+		
+		
+        if('contextInfo' in message && !!message.contextInfo) {
+        	pollResultSnapshotMessage.contextInfo = message.contextInfo
+        }
+        
+        if('mentions' in message && !!message.mentions) {
+        	pollResultSnapshotMessage.contextInfo = { mentionedJid: message.mentions }
+        }
+        
+     m.pollResultSnapshotMessage = pollResultSnapshotMessage
+		
+   } else if('event' in message) {
+      m.messageContextInfo = {
+         messageSecret: message.event.messageSecret || randomBytes(32), 
+      }
+      m.eventMessage = { ...message.event }
+   } else if('inviteAdmin' in message) {
+        m.newsletterAdminInviteMessage = {};
+        m.newsletterAdminInviteMessage.inviteExpiration = message.inviteAdmin.inviteExpiration;
+        m.newsletterAdminInviteMessage.caption = message.inviteAdmin.text;
+        m.newsletterAdminInviteMessage.newsletterJid = message.inviteAdmin.jid;
+        m.newsletterAdminInviteMessage.newsletterName = message.inviteAdmin.subject;
+        m.newsletterAdminInviteMessage.jpegThumbnail = message.inviteAdmin.thumbnail;
+        //TODO: use built-in interface and get disappearing mode info etc.
+        //TODO: cache / use store!?
+        if(options.getProfilePicUrl) {
+			let pfpUrl;
+			try {
+			   pfpUrl = await options.getProfilePicUrl(message.inviteAdmin.jid, 'preview');
+			} catch {
+			   pfpUrl = null
+			}
+			if(pfpUrl) {
+				const resp = await axios.get(pfpUrl, { responseType: 'arraybuffer' })
+				if(resp.status === 200) {
+					m.newsletterAdminInviteMessage.jpegThumbnail = resp.data
+				}
+			} else {
+			    m.newsletterAdminInviteMessage.jpegThumbnail = null
+			}
+		}
+   } else if ('requestPayment' in message) {  
+       const sticker = message?.requestPayment?.sticker ?
+          await prepareWAMessageMedia(
+	       { sticker: message?.requestPayment?.sticker, ...options },
+		   options
+	      )
+	      : null	
+	   let notes = {}
+	   if(message?.requestPayment?.sticker) {
+	      notes = {
+	          stickerMessage: {
+	             ...sticker?.stickerMessage,
+	             contextInfo: {
+		             stanzaId: options?.quoted?.key?.id,
+		             participant: options?.quoted?.key?.participant,
+		             quotedMessage: options?.quoted?.message,
+		             ...message?.requestPayment?.contextInfo,
+		         }
+	          }
+	      }
+	   } else if(message.requestPayment.note) {
+	      notes = {
+	          extendedTextMessage: {
+		          text: message.requestPayment.note,
+		          contextInfo: {
+		             stanzaId: options?.quoted?.key?.id,
+		             participant: options?.quoted?.key?.participant,
+		             quotedMessage: options?.quoted?.message,
+		             ...message?.requestPayment?.contextInfo,
+		          }
+		      }
+	      }
+	   }
+       m.requestPaymentMessage = WAProto.Message.RequestPaymentMessage.fromObject({
+	       expiryTimestamp: message.requestPayment.expiry,
+           amount1000: message.requestPayment.amount,
+           currencyCodeIso4217: message.requestPayment.currency,
+           requestFrom: message.requestPayment.from,
+		   noteMessage: { ...notes },
+           background: message.requestPayment.background ?? null,
+       })
+   } else if('sharePhoneNumber' in message) {
 		m.protocolMessage = {
 			type: proto.Message.ProtocolMessage.Type.SHARE_PHONE_NUMBER
 		}
@@ -608,22 +738,22 @@ export const generateWAMessageContent = async(
 			Object.assign(buttonsMessage, m)
 		}
 
-		if('title' in message && !!message.title) {
-			buttonsMessage.text = message.title,
-			buttonsMessage.headerType = ButtonType.TEXT
-		}
-
 		if('footer' in message && !!message.footer) {
 			buttonsMessage.footerText = message.footer
 		}
-
-		if('contextInfo' in message && !!message.contextInfo) {
-			buttonsMessage.contextInfo = message.contextInfo
-		}
-
-		if('mentions' in message && !!message.mentions) {
-			buttonsMessage.contextInfo = { mentionedJid: message.mentions }
-		}
+		
+        if('title' in message && !!message.title) {
+        	buttonsMessage.text = message.title,
+			buttonsMessage.headerType = ButtonType.TEXT
+        }
+        
+        if('contextInfo' in message && !!message.contextInfo) {
+        	buttonsMessage.contextInfo = message.contextInfo
+        }
+        
+        if('mentions' in message && !!message.mentions) {
+        	buttonsMessage.contextInfo = { mentionedJid: message.mentions }
+        }
 
 		m = { buttonsMessage }
 	} else if('templateButtons' in message && !!message.templateButtons) {
@@ -652,120 +782,287 @@ export const generateWAMessageContent = async(
 				hydratedTemplate: msg
 			}
 		}
-	}
+    }
+	
+	if('interactiveButtons' in message && !!message.interactiveButtons) {
+	   const interactiveMessage: proto.Message.IInteractiveMessage = {
+	      nativeFlowMessage: WAProto.Message.InteractiveMessage.NativeFlowMessage.fromObject({ 
+	         buttons: message.interactiveButtons,
+	      })
+	   }
+	   
+	   if('text' in message) {
+	       body: interactiveMessage.body = { 
+	           text: message.text
+	       }
+	       
+	       header: interactiveMessage.header = {
+	          title: message.title,
+	          subtitle: message.subtitle,
+	          hasMediaAttachment: message?.media ?? false,
+	       }
 
-	if('sections' in message && !!message.sections) {
-		const listMessage: proto.Message.IListMessage = {
+	   } else {
+	   
+	      if('caption' in message) {
+	          body: interactiveMessage.body = {
+	              text: message.caption
+	          }
+	          
+	          header: interactiveMessage.header = {
+	              title: message.title,
+	              subtitle: message.subtitle,
+	              hasMediaAttachment: message?.media ?? false,
+	          }	
+	       		  
+		      Object.assign(interactiveMessage.header, m)
+	      
+	      }	            
+	   }
+	   
+	   if('footer' in message && !!message.footer) {
+		   footer: interactiveMessage.footer = {
+		      text: message.footer
+		   }
+	   }		      
+	   
+       if('contextInfo' in message && !!message.contextInfo) {
+        	interactiveMessage.contextInfo = message.contextInfo
+       }
+        
+       if('mentions' in message && !!message.mentions) {
+        	interactiveMessage.contextInfo = { mentionedJid: message.mentions }
+       }
+       
+	   m = { interactiveMessage }
+	}
+	
+	if('shop' in message && !!message.shop) {
+	    const interactiveMessage: proto.Message.IInteractiveMessage = {
+	      shopStorefrontMessage: WAProto.Message.InteractiveMessage.ShopMessage.fromObject({ 
+	         surface: message.shop,
+	         id: message.id
+	      })
+	   }
+	   
+	   if('text' in message) {
+	       body: interactiveMessage.body = { 
+	           text: message.text
+	       }
+	       
+	       header: interactiveMessage.header = {
+	          title: message.title,
+	          subtitle: message.subtitle,
+	          hasMediaAttachment: message?.media ?? false,
+	       }
+	       
+	   } else {
+	   
+	      if('caption' in message) {
+	          body: interactiveMessage.body = {
+	              text: message.caption
+	          }
+	          
+	          header: interactiveMessage.header = {
+	              title: message.title,
+	              subtitle: message.subtitle,
+	              hasMediaAttachment: message?.media ?? false,
+	          }
+	       		  
+		      Object.assign(interactiveMessage.header, m)
+		      
+	      }
+	   }
+	   
+	   if('footer' in message && !!message.footer) {
+		   footer: interactiveMessage.footer = {
+		      text: message.footer
+		   }
+	   }	   
+	   
+       if('contextInfo' in message && !!message.contextInfo) {
+        	interactiveMessage.contextInfo = message.contextInfo
+       }
+        
+       if('mentions' in message && !!message.mentions) {
+        	interactiveMessage.contextInfo = { mentionedJid: message.mentions }
+       }
+       
+	   m = { interactiveMessage }
+   }
+   
+   if('collection' in message && !!message.shop) {
+	    const interactiveMessage: proto.Message.IInteractiveMessage = {
+	      collectionMessage: WAProto.Message.InteractiveMessage.CollectionMessage.fromObject({ 
+	         bizJid: message?.collection?.bizJid,
+	         id: message?.collection?.id,
+	         messageVersion: message?.collection?.version
+	      })
+	   }
+	   
+	   if('text' in message) {
+	       body: interactiveMessage.body = { 
+	           text: message.text
+	       }
+	       
+	       header: interactiveMessage.header = {
+	          title: message.title,
+	          subtitle: message.subtitle,
+	          hasMediaAttachment: message?.media ?? false,
+	       }
+	       
+	   } else {
+	   
+	      if('caption' in message) {
+	          body: interactiveMessage.body = {
+	              text: message.caption
+	          }
+	          
+	          header: interactiveMessage.header = {
+	              title: message.title,
+	              subtitle: message.subtitle,
+	              hasMediaAttachment: message?.media ?? false,
+	          }
+	       		  
+		      Object.assign(interactiveMessage.header, m)
+		      
+	      }
+	   }
+	   
+	   if('footer' in message && !!message.footer) {
+		   footer: interactiveMessage.footer = {
+		      text: message.footer
+		   }
+	   }	   
+	   
+       if('contextInfo' in message && !!message.contextInfo) {
+        	interactiveMessage.contextInfo = message.contextInfo
+       }
+        
+       if('mentions' in message && !!message.mentions) {
+        	interactiveMessage.contextInfo = { mentionedJid: message.mentions }
+       }
+       
+	   m = { interactiveMessage }
+   }
+   
+   if('cards' in message && !!message.cards) {
+       const slides = await Promise.all(
+           message.cards.map(async slide => {              
+              const { image, video, product, title, caption, footer, buttons } = slide           
+              let header
+              if(product) {
+                 const { imageMessage } = await prepareWAMessageMedia(
+                     { image: product.productImage, ...options }, 
+                     options
+                 );
+		         header = {
+		             productMesage: WAProto.Message.ProductMessage.fromObject({
+			             product: {
+			                ...product,
+				            productImage: imageMessage,
+			             },
+			             ...slide
+		             })
+		         }
+              } else if(image) {
+                 header = await prepareWAMessageMedia(
+                    { image: image, ...options }, 
+                    options
+                 )
+              } else if(video) {
+                 header = await prepareWAMessageMedia(
+                    { video: video, ...options }, 
+                    options
+                 )
+              } 
+              const msg: proto.Message.IInteractiveMessage = {
+                  header: {
+                      title,
+                      hasMediaAttachment: true,
+                      ...header
+                  },
+                  body: {
+                      text: caption
+                  },
+                  footer: {
+                      text: footer
+                  },
+	              nativeFlowMessage: { 
+	                  buttons,
+	              },
+	          } 
+              return msg            
+           }
+       ))
+       const interactiveMessage: proto.Message.IInteractiveMessage = {
+            carouselMessage: WAProto.Message.InteractiveMessage.CarouselMessage.fromObject({
+                 cards: slides
+            })
+       }
+	   
+	   if('text' in message) {
+	       body: interactiveMessage.body = { 
+	           text: message.text
+	       }
+	       
+	       header: interactiveMessage.header = {
+	          title: message.title,
+	          subtitle: message.subtitle,
+	          hasMediaAttachment: message?.media ?? false,
+	       }
+	       
+	   }
+	   
+	   if('footer' in message && !!message.footer) {
+		   footer: interactiveMessage.footer = {
+		      text: message.footer
+		   }
+	   }	   
+	   
+       if('contextInfo' in message && !!message.contextInfo) {
+        	interactiveMessage.contextInfo = message.contextInfo
+       }
+        
+       if('mentions' in message && !!message.mentions) {
+        	interactiveMessage.contextInfo = { mentionedJid: message.mentions }
+       }
+       
+       m = { interactiveMessage }
+   }
+
+   if('sections' in message && !!message.sections) {
+	    const listMessage: proto.Message.IListMessage = {
 			sections: message.sections,
 			buttonText: message.buttonText,
 			title: message.title,
 			footerText: message.footer,
 			description: message.text,
-			listType: message.hasOwnProperty('listType') ? message.listType : proto.Message.ListMessage.ListType.PRODUCT_LIST
+			listType: proto.Message.ListMessage.ListType.SINGLE_SELECT
 		}
 
 		m = { listMessage }
 	}
 
-	if ('interactiveButtons' in message && !!message.interactiveButtons) {
-		const interactiveMessage: proto.Message.IInteractiveMessage = {
-			nativeFlowMessage: WAProto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
-				buttons: message.interactiveButtons,
-			})
-		};
-
-		if ('text' in message) {
-			interactiveMessage.body = {
-				text: message.text
-			};
-		} else if ('caption' in message) {
-			interactiveMessage.body = {
-				text: message.caption
-			}
-
-			interactiveMessage.header = {
-				title: message.title,
-				subtitle: message.subtitle,
-				hasMediaAttachment: message?.media ?? false,
-			};
-
-			Object.assign(interactiveMessage.header, m);
-		}
-
-		if ('footer' in message && !!message.footer) {
-			interactiveMessage.footer = {
-				text: message.footer
-			};
-		}
-
-		if ('title' in message && !!message.title) {
-			interactiveMessage.header = {
-				title: message.title,
-				subtitle: message.subtitle,
-				hasMediaAttachment: message?.media ?? false,
-			};
-
-			Object.assign(interactiveMessage.header, m);
-		}
-
-		if ('contextInfo' in message && !!message.contextInfo) {
-			interactiveMessage.contextInfo = message.contextInfo;
-		}
-
-		if ('mentions' in message && !!message.mentions) {
-			interactiveMessage.contextInfo = { mentionedJid: message.mentions };
-		}
-
-		m = { interactiveMessage };
-	}
-
-	if ('shop' in message && !!message.shop) {
-		const interactiveMessage: proto.Message.IInteractiveMessage = {
-			shopStorefrontMessage: WAProto.Message.InteractiveMessage.ShopMessage.fromObject({
-				surface: message.shop,
-				id: message.id
-			})
-		};
-		if ('text' in message) {
-			interactiveMessage.body = {
-				text: message.text
-			};
-		} else if ('caption' in message) {
-			interactiveMessage.body = {
-				text: message.caption
-			}
-			interactiveMessage.header = {
-				title: message.title,
-				subtitle: message.subtitle,
-				hasMediaAttachment: message?.media ?? false,
-			};
-			Object.assign(interactiveMessage.header, m);
-		}
-		if ('footer' in message && !!message.footer) {
-			interactiveMessage.footer = {
-				text: message.footer
-			};
-		}
-		if ('title' in message && !!message.title) {
-			interactiveMessage.header = {
-				title: message.title,
-				subtitle: message.subtitle,
-				hasMediaAttachment: message?.media ?? false,
-			};
-			Object.assign(interactiveMessage.header, m);
-		}
-		if ('contextInfo' in message && !!message.contextInfo) {
-			interactiveMessage.contextInfo = message.contextInfo;
-		}
-		if ('mentions' in message && !!message.mentions) {
-			interactiveMessage.contextInfo = { mentionedJid: message.mentions };
-		}
-		m = { interactiveMessage };
-	}
-
 	if('viewOnce' in message && !!message.viewOnce) {
 		m = { viewOnceMessage: { message: m } }
 	}
+	
+    if('viewOnceV2' in message && !!message.viewOnceV2) {
+        m = { viewOnceMessageV2: { message: m } };
+    }
+    
+    if('viewOnceV2Extension' in message && !!message.viewOnceV2Extension) {
+        m = { viewOnceMessageV2Extension: { message: m } };
+    }
+    
+    if('ephemeral' in message && !!message.ephemeral) {
+    	m = { ephemeralMessage: { message: m } };
+    }
+    
+    if('lottie' in message && !!message.lottie) {
+    	m = { lottieStickerMessage: { message: m } };
+    }
 
 	if('mentions' in message && message.mentions?.length) {
 		const [messageType] = Object.keys(m)
@@ -793,6 +1090,7 @@ export const generateWAMessageContent = async(
 	return WAProto.Message.fromObject(m)
 }
 
+
 export const generateWAMessageFromContent = (
 	jid: string,
 	message: WAMessageContent,
@@ -809,34 +1107,40 @@ export const generateWAMessageFromContent = (
 	const timestamp = unixTimestampSeconds(options.timestamp)
 	const { quoted, userJid } = options
 
-	// only set quoted if isn't a newsletter message
-	if(quoted && !isJidNewsletter(jid)) {
+	if(quoted && !isJidNewsLetter(jid)) {
 		const participant = quoted.key.fromMe ? userJid : (quoted.participant || quoted.key.participant || quoted.key.remoteJid)
 
 		let quotedMsg = normalizeMessageContent(quoted.message)!
 		const msgType = getContentType(quotedMsg)!
 		// strip any redundant properties
-		if(quotedMsg) {
-			quotedMsg = proto.Message.fromObject({ [msgType]: quotedMsg[msgType] })
+        quotedMsg = proto.Message.fromObject({ [msgType]: quotedMsg[msgType] })		
 
-			const quotedContent = quotedMsg[msgType]
-			if(typeof quotedContent === 'object' && quotedContent && 'contextInfo' in quotedContent) {
-				delete quotedContent.contextInfo
-			}
-
-			const contextInfo: proto.IContextInfo = innerMessage[key].contextInfo || { }
-			contextInfo.participant = jidNormalizedUser(participant!)
-			contextInfo.stanzaId = quoted.key.id
-			contextInfo.quotedMessage = quotedMsg
-
-			// if a participant is quoted, then it must be a group
-			// hence, remoteJid of group must also be entered
-			if(jid !== quoted.key.remoteJid) {
-				contextInfo.remoteJid = quoted.key.remoteJid
-			}
-
-			innerMessage[key].contextInfo = contextInfo
+		const quotedContent = quotedMsg[msgType]		
+        if(typeof quotedContent === 'object' && quotedContent && 'contextInfo' in quotedContent) {
+			delete quotedContent.contextInfo
 		}
+		
+		let requestPayment;
+		if(key === 'requestPaymentMessage') {
+		    if(innerMessage?.requestPaymentMessage?.noteMessage && innerMessage?.requestPaymentMessage?.noteMessage?.extendedTextMessage) {
+		        requestPayment = innerMessage?.requestPaymentMessage?.noteMessage?.extendedTextMessage
+            } else if(innerMessage?.requestPaymentMessage?.noteMessage && innerMessage?.requestPaymentMessage?.noteMessage?.stickerMessage) {
+                requestPayment = innerMessage.requestPaymentMessage?.noteMessage?.stickerMessage
+            }
+		}
+		
+		const contextInfo: proto.IContextInfo = (key ==='requestPaymentMessage' ? requestPayment.contextInfo : innerMessage[key].contextInfo) || { }
+		contextInfo.participant = jidNormalizedUser(participant!)
+		contextInfo.stanzaId = quoted.key.id
+		contextInfo.quotedMessage = quotedMsg
+
+		// if a participant is quoted, then it must be a group
+		// hence, remoteJid of group must also be entered
+		if(jid !== quoted.key.remoteJid) {
+			contextInfo.remoteJid = quoted.key.remoteJid
+		}
+
+		innerMessage[key].contextInfo = contextInfo
 	}
 
 	if(
@@ -847,13 +1151,13 @@ export const generateWAMessageFromContent = (
 		// already not converted to disappearing message
 		key !== 'ephemeralMessage' &&
 		// newsletter not accept disappearing messages
-		!isJidNewsletter(jid)
+		!isJidNewsLetter(jid)
 	) {
 		innerMessage[key].contextInfo = {
 			...(innerMessage[key].contextInfo || {}),
 			expiration: options.ephemeralExpiration || WA_DEFAULT_EPHEMERAL,
 			//ephemeralSettingTimestamp: options.ephemeralOptions.eph_setting_ts?.toString()
-		}
+		}		
 	}
 
 	message = WAProto.Message.fromObject(message)
@@ -862,7 +1166,7 @@ export const generateWAMessageFromContent = (
 		key: {
 			remoteJid: jid,
 			fromMe: true,
-			id: options?.messageId || generateMessageIDV2(),
+			id: options?.messageId || generateMessageID(),
 		},
 		message: message,
 		messageTimestamp: timestamp,
@@ -884,7 +1188,7 @@ export const generateWAMessage = async(
 		jid,
 		await generateWAMessageContent(
 			content,
-			{ newsletter: isJidNewsletter(jid!), ...options }
+			{ newsletter: isJidNewsLetter(jid!), ...options }
 		),
 		options
 	)
@@ -930,18 +1234,6 @@ export const normalizeMessageContent = (content: WAMessageContent | null | undef
 			 || message?.viewOnceMessageV2
 			 || message?.viewOnceMessageV2Extension
 			 || message?.editedMessage
-			 || message?.groupMentionedMessage
-			 || message?.botInvokeMessage
-			 || message?.lottieStickerMessage
-			 || message?.eventCoverImage
-			 || message?.statusMentionMessage
-			 || message?.pollCreationOptionImageMessage
-			 || message?.associatedChildMessage
-			 || message?.groupStatusMentionMessage
-			 || message?.pollCreationMessageV4
-			 || message?.pollCreationMessageV5
-			 || message?.statusAddYours
-			 || message?.groupStatusMessage
 		 )
 	 }
 }
@@ -973,7 +1265,7 @@ export const extractMessageContent = (content: WAMessageContent | undefined | nu
 	content = normalizeMessageContent(content)
 
 	if(content?.buttonsMessage) {
-	  return extractFromTemplateMessage(content.buttonsMessage)
+	  return extractFromTemplateMessage(content.buttonsMessage!)
 	}
 
 	if(content?.templateMessage?.hydratedFourRowTemplate) {
@@ -994,11 +1286,7 @@ export const extractMessageContent = (content: WAMessageContent | undefined | nu
 /**
  * Returns the device predicted by message ID
  */
-export const getDevice = (id: string) => /^3A.{18}$/.test(id) ? 'ios' :
-	/^3E.{20}$/.test(id) ? 'web' :
-		/^(.{21}|.{32})$/.test(id) ? 'android' :
-			/^(3F|.{18}$)/.test(id) ? 'desktop' :
-				'unknown'
+export const getDevice = (id: string) => /^3A.{18}$/.test(id) ? 'ios' : /^3E.{20}$/.test(id) ? 'web' : /^(.{21}|.{32})$/.test(id) ? 'android' : /^.{18}$/.test(id) ? 'desktop' : 'unknown'
 
 /** Upserts a receipt in the message */
 export const updateMessageWithReceipt = (msg: Pick<WAMessage, 'userReceipt'>, receipt: MessageUserReceipt) => {
@@ -1114,7 +1402,7 @@ export const aggregateMessageKeysNotFromMe = (keys: proto.IMessageKey[]) => {
 
 type DownloadMediaMessageContext = {
 	reuploadRequest: (msg: WAMessage) => Promise<WAMessage>
-	logger: ILogger
+	logger: Logger
 }
 
 const REUPLOAD_REQUIRED_STATUS = [410, 404]
