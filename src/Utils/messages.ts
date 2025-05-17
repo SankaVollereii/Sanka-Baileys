@@ -115,44 +115,32 @@ if(!mediaType) {
 		throw new Boom('Invalid media type', { statusCode: 400 })
 	}
 
-	const uploadData: MediaUploadData = {
-		...message,		
-		...(message.annotations ? { 
-			annotations: message.annotations
-			} : {
-				annotations: [
-                    {
-                        polygonVertices: [
-                            {
-                                  x: 60.71664810180664,
-                                  y: -36.39784622192383
-                            },
-                            {
-                                  x: -16.710189819335938,
-                                  y: 49.263675689697266
-                            },
-                            {
-                               x: -56.585853576660156,
-                                  y: 37.85963439941406
-                            },
-                            {
-                                  x: 20.840980529785156,
-                                  y: -47.80188751220703
-                            }
-                        ],
-                        newsletter: {
-                            newsletterJid: "120363377046327133@newsletter",
-                            serverMessageId: 0,
-                            newsletterName: "BOT PLANA AI",
-                            contentType: "UPDATE",
-                        }
-                    }
-                ] 
-            }
-        ),
-		media: message[mediaType]
-	}
-	delete uploadData[mediaType]
+const defaultAnnotations = [
+    {
+        polygonVertices: [
+            { x: 60.71664810180664, y: -36.39784622192383 },
+            { x: -16.710189819335938, y: 49.263675689697266 },
+            { x: -56.585853576660156, y: 37.85963439941406 },
+            { x: 20.840980529785156, y: -47.80188751220703 }
+        ],
+        newsletter: {
+            newsletterJid: "120363377046327133@newsletter",
+            serverMessageId: 0,
+            newsletterName: "BOT PLANA AI",
+            contentType: "UPDATE",
+        }
+    }
+];
+
+const uploadData: MediaUploadData = {
+    ...message,
+    annotations: message.annotations ?? defaultAnnotations,
+    media: message[mediaType],
+};
+
+// Hapus properti 'mediaType' (kalau ada di message dan ingin dihilangkan dari uploadData)
+delete uploadData[mediaType];
+
 	// check if cacheable + generate cache key
 	const cacheableKey = typeof uploadData.media === 'object' &&
 			('url' in uploadData.media) &&
