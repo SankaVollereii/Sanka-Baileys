@@ -111,7 +111,7 @@ export const prepareWAMessageMedia = async(
 		}
 	}
 
-if(!mediaType) {
+	if(!mediaType) {
 		throw new Boom('Invalid media type', { statusCode: 400 })
 	}
 
