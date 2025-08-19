@@ -3,6 +3,7 @@ import { proto } from '../../WAProto'
 import { BaileysEventEmitter, ChatModification, ChatMutation, Contact, InitialAppStateSyncOptions, LTHashState, WAPatchCreate, WAPatchName } from '../Types'
 import { BinaryNode } from '../WABinary'
 import { ILogger } from './logger'
+import { LabelAssociationType } from '../Types/LabelAssociation'
 
 type FetchAppStateSyncKey = (keyId: string) => Promise<proto.Message.IAppStateSyncKeyData | null | undefined>
 
@@ -36,27 +37,7 @@ export declare const decodeSyncdPatch: (msg: proto.ISyncdPatch, name: WAPatchNam
 }>
 
 export declare const extractSyncdPatches: (result: BinaryNode, options: AxiosRequestConfig<{}>) => Promise<{
-    critical_block: {
-        patches: proto.ISyncdPatch[]
-        hasMorePatches: boolean
-        snapshot?: proto.ISyncdSnapshot | undefined
-    }
-    critical_unblock_low: {
-        patches: proto.ISyncdPatch[]
-        hasMorePatches: boolean
-        snapshot?: proto.ISyncdSnapshot | undefined
-    }
-    regular_high: {
-        patches: proto.ISyncdPatch[]
-        hasMorePatches: boolean
-        snapshot?: proto.ISyncdSnapshot | undefined
-    }
-    regular_low: {
-        patches: proto.ISyncdPatch[]
-        hasMorePatches: boolean
-        snapshot?: proto.ISyncdSnapshot | undefined
-    }
-    regular: {
+    [T in WAPatchName]: {
         patches: proto.ISyncdPatch[]
         hasMorePatches: boolean
         snapshot?: proto.ISyncdSnapshot | undefined
@@ -65,6 +46,7 @@ export declare const extractSyncdPatches: (result: BinaryNode, options: AxiosReq
 
 export declare const downloadExternalBlob: (blob: proto.IExternalBlobReference, options: AxiosRequestConfig<{}>) => Promise<Buffer>
 export declare const downloadExternalPatch: (blob: proto.IExternalBlobReference, options: AxiosRequestConfig<{}>) => Promise<proto.SyncdMutations>
+
 export declare const decodeSyncdSnapshot: (name: WAPatchName, snapshot: proto.ISyncdSnapshot, getAppStateSyncKey: FetchAppStateSyncKey, minimumVersionNumber: number | undefined, validateMacs?: boolean) => Promise<{
     state: LTHashState
     mutationMap: ChatMutationMap
@@ -75,7 +57,15 @@ export declare const decodePatches: (name: WAPatchName, syncds: proto.ISyncdPatc
     mutationMap: ChatMutationMap
 }>
 
-export declare const chatModificationToAppPatch: (mod: ChatModification, jid: string) => WAPatchCreate
+export declare const chatModificationToAppPatch: (mod: ChatModification, jid: string) => WAPatchCreate & {
+    syncAction: {
+        timestamp?: number
+        contactAction?: {
+            fullName?: string
+            lidJid?: string
+        }
+    }
+}
 
 export declare const processSyncAction: (syncAction: ChatMutation, ev: BaileysEventEmitter, me: Contact, initialSyncOpts?: InitialAppStateSyncOptions, logger?: ILogger) => void
 

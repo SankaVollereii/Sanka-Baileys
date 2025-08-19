@@ -1,6 +1,7 @@
 import { proto } from '../../WAProto'
-import { GroupMetadata, ParticipantAction, SocketConfig, ContactAction } from '../Types'
+import { GroupMetadata, ParticipantAction, SocketConfig, ContactAction, WAPrivacyValue, WAPrivacyOnlineValue, WAPrivacyCallValue, WAReadReceiptsValue, WAPrivacyGroupAddValue, WABusinessProfile, WAMessageStubType, MessageUpsertType, WAPresence, WAMediaUpload, USyncQuery, USyncQueryResult, USyncQueryResultList } from '../Types'
 import { BinaryNode } from '../WABinary'
+import { BaileysEventEmitter, AuthenticationCreds, SignalKeyStoreWithTransaction, SignalRepository, Contact, ChatModification, LabelActionBody } from '../Types'
 
 export declare const makeGroupsSocket: (config: SocketConfig) => {
     groupQuery: (jid: string, type: string, content: BinaryNode) => Promise<BinaryNode>
@@ -24,18 +25,7 @@ export declare const makeGroupsSocket: (config: SocketConfig) => {
     groupInviteCode: (jid: string) => Promise<string | undefined>
     groupRevokeInvite: (jid: string) => Promise<string | undefined>
     groupAcceptInvite: (code: string) => Promise<string | undefined>
-    /**
-     * revoke a v4 invite for someone
-     * @param groupJid group jid
-     * @param invitedJid jid of person you invited
-     * @returns true if successful
-     */
     groupRevokeInviteV4: (groupJid: string, invitedJid: string) => Promise<boolean>
-    /**
-     * accept a GroupInviteMessage
-     * @param key the key of the invite message, or optionally only provide the jid of the person who sent the invite
-     * @param inviteMessage the message to accept
-     */
     groupAcceptInviteV4: (key: string | proto.IMessageKey, inviteMessage: proto.Message.IGroupInviteMessage) => Promise<string>
     groupGetInviteInfo: (code: string) => Promise<GroupMetadata>
     groupToggleEphemeral: (jid: string, ephemeralExpiration: number) => Promise<void>
@@ -51,80 +41,81 @@ export declare const makeGroupsSocket: (config: SocketConfig) => {
     fetchPrivacySettings: (force?: boolean) => Promise<{
         [_: string]: string
     }>
-    upsertMessage: (msg: proto.IWebMessageInfo, type: import("../Types").MessageUpsertType) => Promise<void>
-    appPatch: (patchCreate: import("../Types").WAPatchCreate) => Promise<void>
-    sendPresenceUpdate: (type: import("../Types").WAPresence, toJid?: string | undefined) => Promise<void>
-    presenceSubscribe: (toJid: string, tcToken?: Buffer | undefined) => Promise<void>    
+    upsertMessage: (msg: proto.IWebMessageInfo, type: MessageUpsertType) => Promise<void>
+    appPatch: (patchCreate: WAPatchCreate) => Promise<void>
+    sendPresenceUpdate: (type: WAPresence, toJid?: string) => Promise<void>
+    presenceSubscribe: (toJid: string, tcToken?: Buffer) => Promise<void>
     getLidUser: (jid: string) => Promise<{
-    	lid: string
+        lid: string
         id: string
     }[] | undefined>
     onWhatsApp: (...jids: string[]) => Promise<{
         jid: string
-        exists: unknown
+        exists: boolean
     }[] | undefined>
     fetchBlocklist: () => Promise<string[]>
-    fetchStatus: (...jids: string[]) => Promise<import("..").USyncQueryResultList[] | undefined>
-    fetchDisappearingDuration: (...jids: string[]) => Promise<import("..").USyncQueryResultList[] | undefined>
-    updateProfilePicture: (jid: string, content: import("../Types").WAMediaUpload) => Promise<void>
+    fetchStatus: (...jids: string[]) => Promise<USyncQueryResultList[] | undefined>
+    fetchDisappearingDuration: (...jids: string[]) => Promise<USyncQueryResultList[] | undefined>
+    updateProfilePicture: (jid: string, content: WAMediaUpload) => Promise<void>
     removeProfilePicture: (jid: string) => Promise<void>
     updateProfileStatus: (status: string) => Promise<void>
     updateProfileName: (name: string) => Promise<void>
     updateBlockStatus: (jid: string, action: "block" | "unblock") => Promise<void>
-    updateCallPrivacy: (value: import("../Types").WAPrivacyCallValue) => Promise<void>
-    updateLastSeenPrivacy: (value: import("../Types").WAPrivacyValue) => Promise<void>
-    updateOnlinePrivacy: (value: import("../Types").WAPrivacyOnlineValue) => Promise<void>
-    updateProfilePicturePrivacy: (value: import("../Types").WAPrivacyValue) => Promise<void>
-    updateStatusPrivacy: (value: import("../Types").WAPrivacyValue) => Promise<void>
-    updateReadReceiptsPrivacy: (value: import("../Types").WAReadReceiptsValue) => Promise<void>
-    updateGroupsAddPrivacy: (value: import("../Types").WAPrivacyGroupAddValue) => Promise<void>
+    updateCallPrivacy: (value: WAPrivacyCallValue) => Promise<void>
+    updateLastSeenPrivacy: (value: WAPrivacyValue) => Promise<void>
+    updateOnlinePrivacy: (value: WAPrivacyOnlineValue) => Promise<void>
+    updateProfilePicturePrivacy: (value: WAPrivacyValue) => Promise<void>
+    updateStatusPrivacy: (value: WAPrivacyValue) => Promise<void>
+    updateReadReceiptsPrivacy: (value: WAReadReceiptsValue) => Promise<void>
+    updateGroupsAddPrivacy: (value: WAPrivacyGroupAddValue) => Promise<void>
     updateDefaultDisappearingMode: (duration: number) => Promise<void>
-    updateDisableLinkPreviewsPrivacy: (isPreviewsDisabled: boolean) => Promise<void>
-    getBusinessProfile: (jid: string) => Promise<void | import("../Types").WABusinessProfile>
+    getBusinessProfile: (jid: string) => Promise<void | WABusinessProfile>
     resyncAppState: (collections: readonly ("critical_block" | "critical_unblock_low" | "regular_high" | "regular_low" | "regular")[], isInitialSync: boolean) => Promise<void>
-    chatModify: (mod: import("../Types").ChatModification, jid: string) => Promise<void>
-    cleanDirtyBits: (type: "account_sync" | "groups", fromTimestamp?: string | number | undefined) => Promise<void>
-    addLabel: (jid: string, labels: import("../Types/Label").LabelActionBody) => Promise<void>
+    chatModify: (mod: ChatModification, jid: string) => Promise<void>
+    cleanDirtyBits: (type: "account_sync" | "groups", fromTimestamp?: string | number) => Promise<void>
+    addLabel: (jid: string, labels: LabelActionBody) => Promise<void>
     addChatLabel: (jid: string, labelId: string) => Promise<void>
     removeChatLabel: (jid: string, labelId: string) => Promise<void>
     addMessageLabel: (jid: string, messageId: string, labelId: string) => Promise<void>
     removeMessageLabel: (jid: string, messageId: string, labelId: string) => Promise<void>
-    clearMessage: (jid: string, key: import("../Types").WAProto.IMessageKey, timeStamp: number | import("long").Long) => Promise<void>
+    clearMessage: (jid: string, key: proto.IMessageKey, timeStamp: number | Long) => Promise<void>
     star: (jid: string, messages: {
         id: string
-        fromMe?: boolean | undefined
+        fromMe?: boolean
     }[], star: boolean) => Promise<void>
     addOrEditContact: (jid: string, contact: ContactAction) => Promise<void>
     removeContact: (jid: string) => Promise<void>
-    executeUSyncQuery: (usyncQuery: import("..").USyncQuery) => Promise<import("..").USyncQueryResult | undefined>
+    executeUSyncQuery: (usyncQuery: USyncQuery) => Promise<USyncQueryResult | undefined>
+    
+    // Socket properties
     type: "md"
-    ws: import("./Client").WebSocketClient
-    ev: import("../Types").BaileysEventEmitter & {
-        process(handler: (events: Partial<import("../Types").BaileysEventMap>) => void | Promise<void>): () => void
+    ws: any // WebSocketClient type would need to be imported/defined
+    ev: BaileysEventEmitter & {
+        process(handler: (events: Partial<BaileysEventMap>) => void | Promise<void>): () => void
         buffer(): void
-        createBufferedFunction<A extends any[], T_1>(work: (...args: A) => Promise<T_1>): (...args: A) => Promise<T_1>
-        flush(force?: boolean | undefined): boolean
+        createBufferedFunction<A extends any[], T>(work: (...args: A) => Promise<T>): (...args: A) => Promise<T>
+        flush(force?: boolean): boolean
         isBuffering(): boolean
     }
     authState: {
-        creds: import("../Types").AuthenticationCreds
-        keys: import("../Types").SignalKeyStoreWithTransaction
+        creds: AuthenticationCreds
+        keys: SignalKeyStoreWithTransaction
     }
-    signalRepository: import("../Types").SignalRepository
-    user: import("../Types").Contact | undefined
+    signalRepository: SignalRepository
+    user: Contact | undefined
     generateMessageTag: () => string
-    query: (node: BinaryNode, timeoutMs?: number | undefined) => Promise<BinaryNode>
-    waitForMessage: <T_2>(msgId: string, timeoutMs?: number | undefined) => Promise<T_2>
+    query: (node: BinaryNode, timeoutMs?: number) => Promise<BinaryNode>
+    waitForMessage: <T>(msgId: string, timeoutMs?: number) => Promise<T>
     waitForSocketOpen: () => Promise<void>
     sendRawMessage: (data: Uint8Array | Buffer) => Promise<void>
     sendNode: (frame: BinaryNode) => Promise<void>
-    logout: (msg?: string | undefined) => Promise<void>
+    logout: (msg?: string) => Promise<void>
     end: (error: Error | undefined) => void
-    onUnexpectedError: (err: Error | import("@hapi/boom").Boom<any>, msg: string) => void
+    onUnexpectedError: (err: Error | Boom<any>, msg: string) => void
     uploadPreKeys: (count?: number) => Promise<void>
     uploadPreKeysToServerIfRequired: () => Promise<void>
     requestPairingCode: (phoneNumber: string, code?: string) => Promise<string>
-    waitForConnectionUpdate: (check: (u: Partial<import("../Types").ConnectionState>) => boolean | undefined, timeoutMs?: number | undefined) => Promise<void>
+    waitForConnectionUpdate: (check: (u: Partial<ConnectionState>) => boolean | undefined, timeoutMs?: number) => Promise<void>
     sendWAMBuffer: (wamBuffer: Buffer) => Promise<BinaryNode>
 }
 

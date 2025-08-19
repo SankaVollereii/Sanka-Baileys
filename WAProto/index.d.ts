@@ -1,5 +1,4 @@
 import { Adv } from './Adv'
-import { BotMetadata } from './BotMetadata'
 import { Cert } from './Cert'
 import { WAChatLockSettings } from './ChatLockSettings'
 import { CompanionReg } from './CompanionReg'
@@ -22,32 +21,29 @@ import { UserPassword } from './UserPassword'
 import { VnameCert } from './VnameCert'
 import { Wa6 } from './Wa6'
 import { Web } from './Web'
-
 const proto = {
-  ...Adv,
-  ...BotMetadata, 
-  ...Cert,
-  ...ChatLockSettings,
-  ...CompanionReg, 
-  ...DeviceCapabilities,
-  ...E2E,
-  ...Ephemeral,
-  ...HistorySync,
-  ...LidMigrationSyncPayload, 
-  ...MdStorageChatRowOpaqueData, 
-  ...MdStorageMsgRowOpaqueData, 
-  ...MmsRetry,
-  ...Protocol,
-  ...Reporting,
-  ...ServerSync,
-  ...SignalLocalStorageProtocol, 
-  ...SignalWhisperTextProtocol, 
-  ...StatusAttributions, 
-  ...SyncAction,
-  ...UserPassword,
-  ...VnameCert,
-  ...Wa6,
-  ...Web
+...Adv,
+...Cert,
+...ChatLockSettings,
+...CompanionReg, 
+...DeviceCapabilities,
+...E2E,
+...Ephemeral,
+...HistorySync,
+...LidMigrationSyncPayload, 
+...MdStorageChatRowOpaqueData, 
+...MdStorageMsgRowOpaqueData, 
+...MmsRetry,
+...Protocol,
+...Reporting,
+...ServerSync,
+...SignalLocalStorageProtocol, 
+...SignalWhisperTextProtocol, 
+...StatusAttributions, 
+...SyncAction,
+...UserPassword,
+...VnameCert,
+...Wa6,
+...Web
 }
-
 export { proto }

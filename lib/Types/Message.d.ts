@@ -11,67 +11,60 @@ import { CacheStore } from './Socket'
 export { proto as WAProto }
 
 export type WAMessage = proto.IWebMessageInfo
-
 export type WAMessageContent = proto.IMessage
-
 export type WAContactMessage = proto.Message.IContactMessage
-
 export type WAContactsArrayMessage = proto.Message.IContactsArrayMessage
+export type WATextMessage = proto.Message.IExtendedTextMessage
+export type WAContextInfo = proto.IContextInfo
+export type WAEventMessage = proto.Message.IEventMessage
+export type WALocationMessage = proto.Message.ILocationMessage
+export type WAOrderMessage = proto.Message.IOrderMessage
+export type WAGenericMediaMessage = 
+    | proto.Message.IVideoMessage 
+    | proto.Message.IImageMessage 
+    | proto.Message.IAudioMessage 
+    | proto.Message.IDocumentMessage 
+    | proto.Message.IStickerMessage
 
+export const WAMessageStubType = proto.WebMessageInfo.StubType
+export const WAMessageStatus = proto.WebMessageInfo.Status
+
+// Actualización de WAMessageKey para incluir ambos conjuntos de propiedades
 export type WAMessageKey = proto.IMessageKey & {
     newsletter_server_id?: string
+    senderLid?: string
+    participantLid?: string
+    senderPn?: string
 }
 
-export type WATextMessage = proto.Message.IExtendedTextMessage
-
-export type WAContextInfo = proto.IContextInfo
-
-export type WALocationMessage = proto.Message.ILocationMessage
-
-export type WAOrderMessage = proto.Message.IOrderMessage
-
-export type WAEventMessage = proto.Message.IEventMessage
-
-export type WAGenericMediaMessage = proto.Message.IVideoMessage | proto.Message.IImageMessage | proto.Message.IAudioMessage | proto.Message.IDocumentMessage | proto.Message.IStickerMessage
-
-export declare const WAMessageStubType = proto.WebMessageInfo.StubType
-
-export declare const WAMessageStatus = proto.WebMessageInfo.Status
-
-export type WAMediaUpload = Buffer | {
-    url: URL | string
-} | {
-    stream: Readable
-}
+export type WAMediaPayloadURL = { url: URL | string }
+export type WAMediaPayloadStream = { stream: Readable }
+export type WAMediaUpload = Buffer | WAMediaPayloadStream | WAMediaPayloadURL
 
 /** Set of message types that are supported by the library */
 export type MessageType = keyof proto.Message
 
-export type DownloadableMessage = {
+export type DownloadableMessage = { 
     mediaKey?: Uint8Array | null
     directPath?: string | null
-    url?: string | null
+    url?: string | null 
 }
 
-export type MessageReceiptType = 'read' | 'read-self' | 'hist_sync' | 'peer_msg' | 'sender' | 'inactive' | 'played' | undefined
+export type MessageReceiptType = 
+    | 'read' 
+    | 'read-self' 
+    | 'hist_sync' 
+    | 'peer_msg' 
+    | 'sender' 
+    | 'inactive' 
+    | 'played' 
+    | undefined
 
 export type MediaConnInfo = {
     auth: string
     ttl: number
-    hosts: {
-        hostname: string
-        maxContentLengthBytes: number
-    }[]
+    hosts: { hostname: string; maxContentLengthBytes: number }[]
     fetchDate: Date
-}
-
-export interface StickerPack {
-    stickers: Sticker[]
-    cover: WAMediaUpload
-    name: string
-    publisher: string
-    description?: string
-    packId?: string
 }
 
 export interface Carousel {
@@ -94,6 +87,7 @@ export interface WAUrlInfo {
     originalThumbnailUrl?: string
 }
 
+// Tipos combinados
 type Mentionable = {
     /** list of jids that are mentioned in the accompanying text */
     mentions?: string[]
@@ -112,8 +106,12 @@ type ViewOnce = {
     viewOnce?: boolean
 }
 
-type ViewOnceExt = {
-    viewOnceExt?: boolean
+type ViewOnceV2 = {
+    viewOnceV2?: boolean
+}
+
+type ViewOnceV2Ext = {
+    viewOnceV2Ext?: boolean
 }
 
 type Buttonable = {
@@ -179,12 +177,6 @@ type WithDimensions = {
     height?: number
 }
 
-export type Sticker = { 
-    data: WAMediaUpload
-    emojis?: string[]
-    accessibilityLabel?: string
-}
-
 export type PollMessageOptions = {
     name: string
     selectableCount?: number
@@ -213,11 +205,15 @@ export type AnyMediaMessageContent = (({
     image: WAMediaUpload
     caption?: string
     jpegThumbnail?: string
+    /** if set to true, will send as a `view once` image */
+    ptv?: boolean
 } & Mentionable & Contextable & Buttonable & Templatable & Interactiveable & WithDimensions) | ({
     video: WAMediaUpload
     caption?: string
     gifPlayback?: boolean
     jpegThumbnail?: string
+    /** if set to true, will send as a `video note` */
+    ptv?: boolean
 } & Mentionable & Contextable & Buttonable & Templatable & Interactiveable & WithDimensions) | {
     audio: WAMediaUpload
     /** if set to true, will send as a `voice note` */
@@ -249,6 +245,12 @@ export type GroupInviteInfo = {
     jid: string
     name: string
     jpegThumbnail?: string
+} | {
+    inviteCode: string
+    inviteExpiration: number
+    text: string
+    jid: string
+    subject: string
 }
 
 export type CallCreationInfo = {
@@ -269,6 +271,13 @@ export type PinInfo = {
     key: WAMessageKey 
     type?: number
     time?: number
+} | {
+    pin: WAMessageKey
+    type: proto.PinInChat.Type
+    /**
+     * 24 hours, 7 days, 30 days
+     */
+    time?: 86400 | 604800 | 2592000
 }
 
 export type KeepInfo = {
@@ -284,9 +293,9 @@ export type PaymentInfo = {
     expiry?: number
     from?: string
     image?: {
-        placeholderArgb: number
-        textArgb: number
-        subtextArgb: number
+        placeholderArgb: fixed32
+        textArgb: fixed32
+        subtextArgb: fixed32
     }
 }
 
@@ -339,9 +348,7 @@ export type AnyRegularMessageContent = (({
     businessOwnerJid?: string
     body?: string
     footer?: string
-} | {
-    stickerPack: StickerPack
-} | SharePhoneNumber | RequestPhoneNumber) & ViewOnce & ViewOnceExt
+} | SharePhoneNumber | RequestPhoneNumber) & ViewOnce & ViewOnceV2 & ViewOnceV2Ext
 
 export type AnyMessageContent = AnyRegularMessageContent | {
     forward: WAMessage
@@ -434,11 +441,11 @@ export type MediaGenerationOptions = {
 
 export type MessageContentGenerationOptions = MediaGenerationOptions & {
     getUrlInfo?: (text: string) => Promise<WAUrlInfo | undefined>
-    getProfilePicUrl?: (jid: string) => Promise<string | undefined>
-    getCallLink?: (type: 'audio' | 'video', event?: number) => Promise<string | undefined>
+    getProfilePicUrl?: (jid: string, type?: 'image' | 'preview') => Promise<string | undefined>
 }
 
 export type MessageGenerationOptions = MessageContentGenerationOptions & MessageGenerationOptionsFromContent
+
 /**
  * Type of message upsert
  * 1. notify => notify the user, this message was just received
