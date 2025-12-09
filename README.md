@@ -8,7 +8,7 @@
 
 <!-- WhatsApp Links -->
 <p>
-  <a href="https://whatsapp.com/channel/0029Vb054T9C1FuLUKkFy236">
+  <a href="https://whatsapp.com/channel/0029VbBv5edGk1Fo8WbsAK1V">
     <img src="https://img.shields.io/badge/WhatsApp-Channel-brightgreen" alt="WA Channel"/>
   </a>
   <a href="https://wa.me/6282375165100">
