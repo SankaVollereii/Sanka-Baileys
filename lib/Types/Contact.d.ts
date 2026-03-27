@@ -1,20 +1,12 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ContactAction = exports.Contact = void 0;
-
-const Contact = {
-    /** ID either in lid or jid format */
-    id: '',
-    /** ID in Lid (anonymous) format (@lid) */
-    lid: undefined,
-    /** ID in Phone Number format (@s.whatsapp.net) */
-    jid: undefined,
+export interface Contact {
+    id: string;
+    lid?: string;
     /** name of the contact, you have saved on your WA */
-    name: undefined,
+    name?: string;
     /** name of the contact, the contact has set on their own on WA */
-    notify: undefined,
+    notify?: string;
     /** I have no idea */
-    verifiedName: undefined,
+    verifiedName?: string;
     /**
      * Url of the profile picture of the contact
      *
@@ -22,14 +14,6 @@ const Contact = {
      * null => if the profile picture has not been set (default profile picture)
      * any other string => url of the profile picture
      */
-    imgUrl: undefined,
-    status: undefined
-};
-exports.Contact = Contact;
-
-const ContactAction = {
-    firstName: '',
-    fullName: '',
-    saveOnPrimaryAddressbook: false
-};
-exports.ContactAction = ContactAction;
+    imgUrl?: string | null | 'changed';
+    status?: string;
+}
