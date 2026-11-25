@@ -1,6 +1,9 @@
 {
   "name": "sanka-baileyss",
-  "version": "2.6.2",
+  "version": "2.6.4",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "WhatsApp API Modification By Sanka_Vollerei",
   "keywords": [
     "Baileys",
@@ -17,11 +20,13 @@
     "whatsapp-group",
     "automation",
     "multi-device",
-    "sanka-baileys"
+    "sanka-baileys",
+    "sanka-wabot",
+    "sanka-wabot-md"
   ],
-  "homepage": "https://sankavollerei.com",
+  "homepage": "https://sankavollerei.web.id",
   "repository": {
-    "url": "git@github.com:SankaVollereii/Sanka-Baileys.git"
+    "url": "git+ssh://git@github.com/SankaVollereii/Sanka-Baileys.git"
   },
   "license": "MIT",
   "author": "Sanka Vollereii",
